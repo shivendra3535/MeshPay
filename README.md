@@ -295,28 +295,4 @@ This project is a proof of concept. A production deployment would require:
 
 ---
 
-## Resume Description
 
-> Built a distributed offline payment system using Java and Spring Boot that enables UPI transactions without internet using Bluetooth-based packet propagation, hybrid encryption (RSA-2048 + AES-256-GCM), idempotency control with ConcurrentHashMap/putIfAbsent, and TTL-based replay protection — demonstrating distributed systems design, cryptographic security, and fault-tolerant transaction processing.
-
----
-
-## Interview Talking Points
-
-**Q: How does the system prevent double-charging if multiple phones deliver the same packet?**
-
-The server computes `SHA-256(ciphertext)` as the idempotency key. `ConcurrentHashMap.putIfAbsent()` is atomic — even if 100 threads call it at the same instant, exactly one wins and proceeds to settlement. The rest are dropped as duplicates. In production this maps to Redis `SETNX`. There are two additional fallback layers: JPA `@Version` optimistic locking and a unique database index on `packetHash`.
-
-**Q: How do you prevent someone from intercepting and replaying the encrypted packet?**
-
-Two mechanisms: (1) The `signedAt` timestamp inside the encrypted payload is checked against a maximum age window on the server. A packet replayed after 24 hours is rejected as `stale_packet`. (2) Each packet contains a UUID `nonce` inside the encrypted payload. Even if everything else is identical, the nonce changes the ciphertext, which changes the idempotency key — so it would only be processed once anyway.
-
-**Q: Can a malicious intermediate modify the transaction amount?**
-
-No. The `PaymentInstruction` (containing the amount) is inside the AES-GCM ciphertext, which is inside the RSA-encrypted AES key. AES-GCM is authenticated encryption — any modification to the ciphertext, even a single bit, causes decryption to throw an exception. The outer `packetId` and `ttl` fields are plaintext and modifiable, but they are not trusted by the server for settlement decisions.
-
----
-
-## License
-
-MIT
